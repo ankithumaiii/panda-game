@@ -115,9 +115,6 @@
   const heartsDisplay = document.getElementById('hearts-display');
   const comboMultiplier = document.getElementById('combo-multiplier');
   const comboBar = document.getElementById('combo-bar');
-  const ammoCurrent = document.getElementById('ammo-current');
-  const dartsRack = document.getElementById('darts-rack');
-  const btnReload = document.getElementById('btn-reload');
   const btnToggleScope = document.getElementById('btn-toggle-scope');
   const scopeBtnText = document.getElementById('scope-btn-text');
   const btnZen = document.getElementById('btn-zen');
@@ -128,6 +125,8 @@
   const btnPause = document.getElementById('btn-pause');
   const hudLayer = document.getElementById('hud-layer');
   const btnFullscreen = document.getElementById('btn-fullscreen');
+  const fsExpandIcon = document.getElementById('fs-expand-icon');
+  const fsCompressIcon = document.getElementById('fs-compress-icon');
   const orientationHint = document.getElementById('orientation-hint');
   const btnDismissHint = document.getElementById('btn-dismiss-hint');
   const touchRipplesContainer = document.getElementById('touch-ripples');
@@ -202,8 +201,51 @@
   let particles = [];
   let floatingTexts = [];
   let mudProjectiles = [];
+  let dartTracers = [];
   let ambientLeaves = [];
   let ambientFireflies = [];
+
+  // --- Visual Dart Tracer Class ---
+  class DartTracer {
+    constructor(startX, startY, targetX, targetY) {
+      this.startX = startX;
+      this.startY = startY;
+      this.targetX = targetX;
+      this.targetY = targetY;
+      this.progress = 0;
+      this.duration = 65; // ms
+    }
+
+    update(dt) {
+      this.progress += dt / this.duration;
+      return this.progress < 1.0;
+    }
+
+    draw(ctx) {
+      const curX = this.startX + (this.targetX - this.startX) * Math.min(1, this.progress);
+      const curY = this.startY + (this.targetY - this.startY) * Math.min(1, this.progress);
+      const prevX = this.startX + (this.targetX - this.startX) * Math.max(0, this.progress - 0.35);
+      const prevY = this.startY + (this.targetY - this.startY) * Math.max(0, this.progress - 0.35);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(prevX, prevY);
+      ctx.lineTo(curX, curY);
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.shadowColor = '#10b981';
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+
+      // Dart tip spark
+      ctx.beginPath();
+      ctx.arc(curX, curY, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 
   // --- Panda Entity Class ---
   class Panda {
@@ -1057,33 +1099,30 @@
     pandas.push(new Panda(spot));
   }
 
-  // --- Shooting Mechanics ---
-  function shoot() {
+  // --- Shooting Mechanics (Unlimited Rapid Fire Darts) ---
+  function shoot(explicitX, explicitY) {
     if (!state.isPlaying || state.isPaused) return;
 
-    if (state.ammo <= 0) {
-      window.soundEngine.playEmpty();
-      reload();
-      return;
-    }
-
-    if (state.isReloading) return;
-
-    state.ammo--;
     state.shotsFired++;
-    updateAmmoUI();
-
     window.soundEngine.playShoot();
 
     // Recoil animation on crosshair
-    customCrosshair.classList.add('recoil');
-    setTimeout(() => customCrosshair.classList.remove('recoil'), 120);
+    if (customCrosshair) {
+      customCrosshair.classList.add('recoil');
+      setTimeout(() => customCrosshair.classList.remove('recoil'), 100);
+    }
 
-    triggerScreenShake(4);
+    triggerScreenShake(3);
 
     // Hit test against pandas
-    const shotX = state.canvasMouse.x;
-    const shotY = state.canvasMouse.y;
+    const shotX = explicitX !== undefined ? explicitX : state.canvasMouse.x;
+    const shotY = explicitY !== undefined ? explicitY : state.canvasMouse.y;
+
+    // Visual Dart Tracer streak
+    const originX = V_WIDTH * 0.5;
+    const originY = state.isScoped ? V_HEIGHT * 0.5 : V_HEIGHT * 0.98;
+    dartTracers.push(new DartTracer(originX, originY, shotX, shotY));
+
     let hitDetected = false;
 
     // Sort by depth descending so foreground takes precedence
@@ -1158,23 +1197,6 @@
     }, 180);
   }
 
-  function reload() {
-    if (state.isReloading || state.ammo === CONFIG.MAX_AMMO) return;
-    state.isReloading = true;
-    btnReload.classList.add('reloading');
-    btnReload.textContent = 'RELOADING...';
-
-    window.soundEngine.playReload();
-
-    setTimeout(() => {
-      state.ammo = CONFIG.MAX_AMMO;
-      state.isReloading = false;
-      btnReload.classList.remove('reloading');
-      btnReload.innerHTML = 'RELOAD <span class="kbd-hint">[R]</span>';
-      updateAmmoUI();
-    }, CONFIG.RELOAD_TIME);
-  }
-
   function toggleScope() {
     state.isScoped = !state.isScoped;
     state.cam.targetZoom = state.isScoped ? CONFIG.ZOOM_FACTOR : 1.0;
@@ -1234,17 +1256,6 @@
     scoreDisplay.textContent = state.score.toString().padStart(5, '0');
   }
 
-  function updateAmmoUI() {
-    ammoCurrent.textContent = state.ammo;
-    const dartIcons = dartsRack.children;
-    for (let i = 0; i < CONFIG.MAX_AMMO; i++) {
-      if (i < state.ammo) {
-        dartIcons[i].className = 'dart-icon full';
-      } else {
-        dartIcons[i].className = 'dart-icon spent';
-      }
-    }
-  }
 
   function updateComboUI() {
     comboMultiplier.textContent = `x${state.combo}`;
@@ -1334,6 +1345,7 @@
 
     pandas = pandas.filter(p => p.update(dt));
     mudProjectiles = mudProjectiles.filter(m => m.update(dt));
+    dartTracers = dartTracers.filter(d => d.update(dt));
     particles = particles.filter(pt => pt.update(dt));
     floatingTexts = floatingTexts.filter(ft => ft.update(dt));
 
@@ -1371,6 +1383,9 @@
 
     // Mud Projectiles
     for (const m of mudProjectiles) m.draw(ctx);
+
+    // Dart Projectiles / Tracers
+    for (const d of dartTracers) d.draw(ctx);
 
     // Particles
     for (const pt of particles) pt.draw(ctx);
@@ -1456,7 +1471,7 @@
     state.goldenTagged = 0;
     state.maxCombo = 1;
     state.combo = 1;
-    state.ammo = CONFIG.MAX_AMMO;
+    state.ammo = Infinity;
     state.isReloading = false;
     state.isScoped = false;
     state.timeRemaining = CONFIG.TIMED_GAME_DURATION;
@@ -1465,6 +1480,7 @@
     pandas = [];
     particles = [];
     mudProjectiles = [];
+    dartTracers = [];
     floatingTexts = [];
     splattersLayer.innerHTML = '';
 
@@ -1484,7 +1500,6 @@
     }
 
     updateScoreUI();
-    updateAmmoUI();
     resetCombo();
 
     startScreen.classList.remove('active');
@@ -1560,7 +1575,8 @@
       if (e.target.closest('button') || e.target.closest('.modal-box')) return;
 
       if (e.button === 0) {
-        shoot();
+        updateMousePositions(e.clientX, e.clientY);
+        shoot(state.canvasMouse.x, state.canvasMouse.y);
       } else if (e.button === 2) {
         // Right Click: Toggle Scope
         e.preventDefault();
@@ -1583,7 +1599,7 @@
       const touch = e.touches[0];
       updateMousePositions(touch.clientX, touch.clientY);
       createTouchRipple(touch.clientX, touch.clientY);
-      shoot();
+      shoot(state.canvasMouse.x, state.canvasMouse.y);
     }, { passive: false });
 
     function createTouchRipple(clientX, clientY) {
@@ -1596,21 +1612,35 @@
       setTimeout(() => ripple.remove(), 400);
     }
 
-    // Fullscreen Toggle
+    // Fullscreen Toggle with SVG Icons
+    function updateFsIcons() {
+      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      if (fsExpandIcon && fsCompressIcon) {
+        fsExpandIcon.classList.toggle('hidden', isFs);
+        fsCompressIcon.classList.toggle('hidden', !isFs);
+      }
+    }
+
     if (btnFullscreen) {
       btnFullscreen.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
-          btnFullscreen.textContent = '✕';
+        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        if (!isFs) {
+          if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          } else if (document.documentElement.webkitRequestFullscreen) {
+            document.documentElement.webkitRequestFullscreen();
+          }
         } else {
-          if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-          btnFullscreen.textContent = '⛶';
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          }
         }
       });
 
-      document.addEventListener('fullscreenchange', () => {
-        btnFullscreen.textContent = document.fullscreenElement ? '✕' : '⛶';
-      });
+      document.addEventListener('fullscreenchange', updateFsIcons);
+      document.addEventListener('webkitfullscreenchange', updateFsIcons);
     }
 
     // Dismiss Orientation Hint
@@ -1624,9 +1654,7 @@
 
     // Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'r' || e.key === 'R') {
-        reload();
-      } else if (e.code === 'Space') {
+      if (e.code === 'Space') {
         e.preventDefault();
         toggleScope();
       } else if (e.key === 'q' || e.key === 'Q') {
@@ -1640,7 +1668,6 @@
     });
 
     // HUD Buttons
-    btnReload.addEventListener('click', reload);
     btnToggleScope.addEventListener('click', toggleScope);
     btnZen.addEventListener('click', activateZen);
     btnRadar.addEventListener('click', activateRadar);
