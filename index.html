@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Panda Hide & Seek: Safari Hunter | Wild Forest Arcade</title>
+  <meta name="description" content="An arcade browser hunting and shooting game. Spot sneaky pandas playing hide and seek in a lush bamboo forest using tactical scope, darts, and thermal radar!">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Outfit:wght@400;600;700;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Scope Vignette Overlay for Scoped Mode -->
+    <div id="scope-overlay" class="hidden">
+      <div class="scope-lens">
+        <div class="scope-crosshair-lines">
+          <div class="scope-line horizontal"></div>
+          <div class="scope-line vertical"></div>
+          <div class="scope-reticle-marks"></div>
+          <div class="scope-rangefinder">
+            <span class="range-text">DIST: <span id="scope-dist">42.8m</span></span>
+            <span class="range-text">ELEV: +1.2</span>
+            <span class="range-text">WIND: 3.4 m/s ◀</span>
+          </div>
+        </div>
+      </div>
+      <div class="scope-blackout left"></div>
+      <div class="scope-blackout right"></div>
+      <div class="scope-blackout top"></div>
+      <div class="scope-blackout bottom"></div>
+    </div>
+
+    <!-- Screen Splatter Container for Prankster Pandas -->
+    <div id="splatters-layer"></div>
+
+    <!-- HUD Overlay -->
+    <div id="hud-layer">
+      <!-- Top Bar: Scores, Time/Lives, Combo -->
+      <header class="hud-header">
+        <div class="hud-card glass-panel" id="score-card">
+          <span class="hud-label">SCORE</span>
+          <span class="hud-value" id="score-display">00000</span>
+        </div>
+
+        <div class="hud-card glass-panel" id="combo-card">
+          <div class="combo-title">COMBO</div>
+          <div class="combo-multiplier" id="combo-multiplier">x1</div>
+          <div class="combo-bar-wrapper">
+            <div class="combo-bar-fill" id="combo-bar"></div>
+          </div>
+        </div>
+
+        <div class="hud-card glass-panel" id="timer-lives-card">
+          <div id="timer-wrapper">
+            <span class="hud-label">TIME</span>
+            <span class="hud-value" id="time-display">90s</span>
+          </div>
+          <div id="lives-wrapper" class="hidden">
+            <span class="hud-label">VISOR SHIELD</span>
+            <div class="hearts-container" id="hearts-display">
+              <span class="heart active">❤️</span>
+              <span class="heart active">❤️</span>
+              <span class="heart active">❤️</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Tactical Skills Bar (Zen Focus & Thermal Radar) -->
+      <div class="skills-bar">
+        <button id="btn-zen" class="skill-btn glass-panel" title="Zen Slow Motion (Q or click)">
+          <div class="skill-icon">⏳</div>
+          <div class="skill-info">
+            <span class="skill-name">ZEN TIME</span>
+            <span class="skill-key">[Q]</span>
+          </div>
+          <div class="skill-cd-overlay" id="zen-cd"></div>
+        </button>
+
+        <button id="btn-radar" class="skill-btn glass-panel" title="Thermal Radar Pulse (E or click)">
+          <div class="skill-icon">📡</div>
+          <div class="skill-info">
+            <span class="skill-name">RADAR SCAN</span>
+            <span class="skill-key">[E]</span>
+          </div>
+          <div class="skill-cd-overlay" id="radar-cd"></div>
+        </button>
+      </div>
+
+      <!-- Bottom Bar: Ammo Magazine, Quick Controls, Scope Status -->
+      <footer class="hud-footer">
+        <div class="hud-card glass-panel" id="scope-status-card">
+          <button id="btn-toggle-scope" class="scope-toggle-btn">
+            <span class="icon">🎯</span>
+            <span id="scope-btn-text">SCOPE [SPACE / RMB]</span>
+          </button>
+        </div>
+
+        <div class="hud-card glass-panel" id="ammo-card">
+          <div class="ammo-header">
+            <span class="hud-label">TRANQUILIZER DARTS</span>
+            <span class="ammo-count"><span id="ammo-current">6</span> / 6</span>
+          </div>
+          <div class="darts-rack" id="darts-rack">
+            <div class="dart-icon full"></div>
+            <div class="dart-icon full"></div>
+            <div class="dart-icon full"></div>
+            <div class="dart-icon full"></div>
+            <div class="dart-icon full"></div>
+            <div class="dart-icon full"></div>
+          </div>
+          <button id="btn-reload" class="reload-btn">RELOAD [R]</button>
+        </div>
+
+        <div class="quick-toggles">
+          <button id="btn-sound-toggle" class="icon-btn glass-panel" title="Toggle Sound">🔊</button>
+          <button id="btn-pause" class="icon-btn glass-panel" title="Pause / Menu">⏸️</button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Custom Cursor Crosshair (when in canvas) -->
+    <div id="custom-crosshair">
+      <div class="crosshair-ring"></div>
+      <div class="crosshair-dot"></div>
+      <div class="crosshair-axis top"></div>
+      <div class="crosshair-axis bottom"></div>
+      <div class="crosshair-axis left"></div>
+      <div class="crosshair-axis right"></div>
+    </div>
+
+    <!-- Hitmarker Animation Element -->
+    <div id="hitmarker" class="hitmarker-hidden">
+      <div class="hm-line tl"></div>
+      <div class="hm-line tr"></div>
+      <div class="hm-line bl"></div>
+      <div class="hm-line br"></div>
+    </div>
+
+    <!-- Start / Title Screen Overlay -->
+    <div id="start-screen" class="screen-modal active">
+      <div class="modal-backdrop"></div>
+      <div class="modal-box glass-panel-glow">
+        <div class="title-badge">ARCADE SAFARI SHOOTER</div>
+        <h1 class="game-title">PANDA<br><span class="highlight">HIDE & SEEK</span></h1>
+        <p class="tagline">Explore the misty bamboo sanctuary! Sneaky pandas are peeking behind stalks and shrines. Spot and tag them with tranquilizer darts!</p>
+
+        <!-- Mode Selector -->
+        <div class="mode-selector">
+          <div class="mode-card selected" data-mode="timed">
+            <div class="mode-badge">POPULAR</div>
+            <div class="mode-icon">⏱️</div>
+            <h3>Safari Rush</h3>
+            <p>90s high-speed hunt! Build crazy combo streaks.</p>
+          </div>
+          <div class="mode-card" data-mode="survival">
+            <div class="mode-badge">CHALLENGING</div>
+            <div class="mode-icon">🛡️</div>
+            <h3>Forest Patrol</h3>
+            <p>Don't let pranksters splatter your visor! 3 lives.</p>
+          </div>
+          <div class="mode-card" data-mode="zen">
+            <div class="mode-badge">CHILL</div>
+            <div class="mode-icon">🎋</div>
+            <h3>Zen Practice</h3>
+            <p>Endless serene forest. Perfect for target practice.</p>
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button id="btn-start-game" class="btn btn-primary pulse-btn">START HUNTING</button>
+          <button id="btn-how-to-play" class="btn btn-secondary">HOW TO PLAY</button>
+          <button id="btn-view-records" class="btn btn-secondary">TROPHY ROOM</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- How to Play Modal -->
+    <div id="how-modal" class="screen-modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-box glass-panel-glow wide">
+        <h2>HOW TO PLAY</h2>
+        <div class="guide-grid">
+          <div class="guide-col">
+            <h3>🎮 Controls</h3>
+            <ul class="guide-list">
+              <li><strong>Left Click / Tap:</strong> Shoot Tranquilizer Dart</li>
+              <li><strong>Right Click / Space:</strong> Toggle Sniper Scope Zoom</li>
+              <li><strong>[R] Key / Button:</strong> Reload Dart Magazine</li>
+              <li><strong>[Q] Key:</strong> Zen Slow-Motion Time</li>
+              <li><strong>[E] Key:</strong> Thermal Radar Sonar Scan</li>
+            </ul>
+          </div>
+          <div class="guide-col">
+            <h3>🐼 Panda Species</h3>
+            <div class="panda-guide-row">
+              <span class="p-icon">🐼</span>
+              <div><strong>Sneaky Panda:</strong> Peeks out & ducks fast (100 pts)</div>
+            </div>
+            <div class="panda-guide-row">
+              <span class="p-icon">🎋</span>
+              <div><strong>Bamboo Muncher:</strong> Munches snacks in bushes (150 pts)</div>
+            </div>
+            <div class="panda-guide-row">
+              <span class="p-icon">🥷</span>
+              <div><strong>Ninja Panda:</strong> Quick dash with bamboo disguise (300 pts)</div>
+            </div>
+            <div class="panda-guide-row">
+              <span class="p-icon">👑</span>
+              <div><strong>Golden Emperor:</strong> Rare glimmering legend! (1,000 pts)</div>
+            </div>
+            <div class="panda-guide-row">
+              <span class="p-icon">😈</span>
+              <div><strong>Prankster Panda:</strong> Throws mud at your lens if not tagged!</div>
+            </div>
+          </div>
+        </div>
+        <button id="btn-close-how" class="btn btn-primary">GOT IT, LET'S PLAY</button>
+      </div>
+    </div>
+
+    <!-- Trophy Room / Records Modal -->
+    <div id="trophy-modal" class="screen-modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-box glass-panel-glow">
+        <h2>🏆 TROPHY ROOM & BEST HUNTS</h2>
+        <div class="records-list">
+          <div class="record-item">
+            <span>Safari Rush High Score</span>
+            <strong id="rec-timed">0</strong>
+          </div>
+          <div class="record-item">
+            <span>Forest Patrol High Score</span>
+            <strong id="rec-survival">0</strong>
+          </div>
+          <div class="record-item">
+            <span>Max Combo Streak</span>
+            <strong id="rec-combo">0x</strong>
+          </div>
+          <div class="record-item">
+            <span>Total Pandas Tagged</span>
+            <strong id="rec-total">0</strong>
+          </div>
+          <div class="record-item">
+            <span>Golden Emperors Found</span>
+            <strong id="rec-golden">0</strong>
+          </div>
+        </div>
+        <button id="btn-close-trophy" class="btn btn-primary">CLOSE</button>
+      </div>
+    </div>
+
+    <!-- Game Over / Victory Modal -->
+    <div id="gameover-modal" class="screen-modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-box glass-panel-glow">
+        <div id="gameover-badge" class="title-badge">HUNT FINISHED</div>
+        <h2 id="gameover-title" class="game-title">SAFARI COMPLETE!</h2>
+
+        <div class="results-grid">
+          <div class="result-card">
+            <span class="res-label">FINAL SCORE</span>
+            <span class="res-val" id="res-score">0</span>
+          </div>
+          <div class="result-card">
+            <span class="res-label">ACCURACY</span>
+            <span class="res-val" id="res-accuracy">0%</span>
+          </div>
+          <div class="result-card">
+            <span class="res-label">MAX COMBO</span>
+            <span class="res-val" id="res-combo">x1</span>
+          </div>
+          <div class="result-card">
+            <span class="res-label">PANDAS TAGGED</span>
+            <span class="res-val" id="res-pandas">0</span>
+          </div>
+        </div>
+
+        <div id="new-high-score-banner" class="high-score-banner hidden">
+          🌟 NEW RECORD HIGH SCORE! 🌟
+        </div>
+
+        <div class="action-buttons">
+          <button id="btn-restart" class="btn btn-primary pulse-btn">PLAY AGAIN</button>
+          <button id="btn-main-menu" class="btn btn-secondary">MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause Modal -->
+    <div id="pause-modal" class="screen-modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-box glass-panel-glow">
+        <h2>GAME PAUSED</h2>
+        <p>Catch your breath in the peaceful bamboo forest.</p>
+        <div class="action-buttons vertical">
+          <button id="btn-resume" class="btn btn-primary">RESUME HUNT</button>
+          <button id="btn-quit-to-menu" class="btn btn-secondary">QUIT TO MENU</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="audio.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
