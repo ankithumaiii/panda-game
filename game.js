@@ -133,7 +133,6 @@
   const orientationHint = document.getElementById('orientation-hint');
   const btnDismissHint = document.getElementById('btn-dismiss-hint');
   const touchRipplesContainer = document.getElementById('touch-ripples');
-  let lastTouchTime = 0;
 
   // Modals
   const startScreen = document.getElementById('start-screen');
