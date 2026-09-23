@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Panda Hide & Seek: Safari Hunter | Wild Forest Arcade</title>
   <meta name="description" content="An arcade browser hunting and shooting game. Spot sneaky pandas playing hide and seek in a lush bamboo forest using tactical scope, darts, and thermal radar!">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,6 +12,12 @@
 </head>
 <body>
   <div id="game-container">
+    <!-- Orientation Hint Banner for Mobile Portrait -->
+    <div id="orientation-hint" class="orientation-hint">
+      <span>📱 Rotate for Fullscreen Landscape</span>
+      <button id="btn-dismiss-hint" class="hint-close" title="Dismiss">✕</button>
+    </div>
+
     <!-- Game Canvas -->
     <canvas id="gameCanvas"></canvas>
 
@@ -38,8 +44,11 @@
     <!-- Screen Splatter Container for Prankster Pandas -->
     <div id="splatters-layer"></div>
 
+    <!-- Touch Feedback Ripples Container for Mobile -->
+    <div id="touch-ripples"></div>
+
     <!-- HUD Overlay -->
-    <div id="hud-layer">
+    <div id="hud-layer" class="hidden">
       <!-- Top Bar: Scores, Time/Lives, Combo -->
       <header class="hud-header">
         <div class="hud-card glass-panel" id="score-card">
@@ -61,7 +70,7 @@
             <span class="hud-value" id="time-display">90s</span>
           </div>
           <div id="lives-wrapper" class="hidden">
-            <span class="hud-label">VISOR SHIELD</span>
+            <span class="hud-label">SHIELD</span>
             <div class="hearts-container" id="hearts-display">
               <span class="heart active">❤️</span>
               <span class="heart active">❤️</span>
@@ -73,20 +82,20 @@
 
       <!-- Tactical Skills Bar (Zen Focus & Thermal Radar) -->
       <div class="skills-bar">
-        <button id="btn-zen" class="skill-btn glass-panel" title="Zen Slow Motion (Q or click)">
+        <button id="btn-zen" class="skill-btn glass-panel" title="Zen Slow Motion (Q or tap)">
           <div class="skill-icon">⏳</div>
           <div class="skill-info">
             <span class="skill-name">ZEN TIME</span>
-            <span class="skill-key">[Q]</span>
+            <span class="skill-key kbd-hint">[Q]</span>
           </div>
           <div class="skill-cd-overlay" id="zen-cd"></div>
         </button>
 
-        <button id="btn-radar" class="skill-btn glass-panel" title="Thermal Radar Pulse (E or click)">
+        <button id="btn-radar" class="skill-btn glass-panel" title="Thermal Radar Pulse (E or tap)">
           <div class="skill-icon">📡</div>
           <div class="skill-info">
             <span class="skill-name">RADAR SCAN</span>
-            <span class="skill-key">[E]</span>
+            <span class="skill-key kbd-hint">[E]</span>
           </div>
           <div class="skill-cd-overlay" id="radar-cd"></div>
         </button>
@@ -97,13 +106,13 @@
         <div class="hud-card glass-panel" id="scope-status-card">
           <button id="btn-toggle-scope" class="scope-toggle-btn">
             <span class="icon">🎯</span>
-            <span id="scope-btn-text">SCOPE [SPACE / RMB]</span>
+            <span id="scope-btn-text">SCOPE <span class="kbd-hint">[SPACE / RMB]</span></span>
           </button>
         </div>
 
         <div class="hud-card glass-panel" id="ammo-card">
           <div class="ammo-header">
-            <span class="hud-label">TRANQUILIZER DARTS</span>
+            <span class="hud-label">DARTS</span>
             <span class="ammo-count"><span id="ammo-current">6</span> / 6</span>
           </div>
           <div class="darts-rack" id="darts-rack">
@@ -114,10 +123,11 @@
             <div class="dart-icon full"></div>
             <div class="dart-icon full"></div>
           </div>
-          <button id="btn-reload" class="reload-btn">RELOAD [R]</button>
+          <button id="btn-reload" class="reload-btn">RELOAD <span class="kbd-hint">[R]</span></button>
         </div>
 
         <div class="quick-toggles">
+          <button id="btn-fullscreen" class="icon-btn glass-panel" title="Toggle Fullscreen">⛶</button>
           <button id="btn-sound-toggle" class="icon-btn glass-panel" title="Toggle Sound">🔊</button>
           <button id="btn-pause" class="icon-btn glass-panel" title="Pause / Menu">⏸️</button>
         </div>
@@ -189,11 +199,11 @@
           <div class="guide-col">
             <h3>🎮 Controls</h3>
             <ul class="guide-list">
-              <li><strong>Left Click / Tap:</strong> Shoot Tranquilizer Dart</li>
-              <li><strong>Right Click / Space:</strong> Toggle Sniper Scope Zoom</li>
-              <li><strong>[R] Key / Button:</strong> Reload Dart Magazine</li>
-              <li><strong>[Q] Key:</strong> Zen Slow-Motion Time</li>
-              <li><strong>[E] Key:</strong> Thermal Radar Sonar Scan</li>
+              <li><strong>Tap / Left Click:</strong> Shoot Tranquilizer Dart</li>
+              <li><strong>Scope Button / Space:</strong> Toggle Sniper Scope Zoom</li>
+              <li><strong>Reload Button / [R]:</strong> Reload Dart Magazine</li>
+              <li><strong>Zen Button / [Q]:</strong> Zen Slow-Motion Time</li>
+              <li><strong>Radar Button / [E]:</strong> Thermal Radar Sonar Scan</li>
             </ul>
           </div>
           <div class="guide-col">

@@ -126,6 +126,11 @@
   const radarCd = document.getElementById('radar-cd');
   const btnSoundToggle = document.getElementById('btn-sound-toggle');
   const btnPause = document.getElementById('btn-pause');
+  const hudLayer = document.getElementById('hud-layer');
+  const btnFullscreen = document.getElementById('btn-fullscreen');
+  const orientationHint = document.getElementById('orientation-hint');
+  const btnDismissHint = document.getElementById('btn-dismiss-hint');
+  const touchRipplesContainer = document.getElementById('touch-ripples');
 
   // Modals
   const startScreen = document.getElementById('start-screen');
@@ -1165,7 +1170,7 @@
       state.ammo = CONFIG.MAX_AMMO;
       state.isReloading = false;
       btnReload.classList.remove('reloading');
-      btnReload.textContent = 'RELOAD [R]';
+      btnReload.innerHTML = 'RELOAD <span class="kbd-hint">[R]</span>';
       updateAmmoUI();
     }, CONFIG.RELOAD_TIME);
   }
@@ -1178,12 +1183,12 @@
 
     if (state.isScoped) {
       scopeOverlay.classList.remove('hidden');
-      scopeBtnText.textContent = 'EXIT SCOPE [SPACE]';
+      scopeBtnText.innerHTML = 'EXIT SCOPE <span class="kbd-hint">[SPACE]</span>';
       // Randomize rangefinder readout for realism
       document.getElementById('scope-dist').textContent = `${(35 + Math.random() * 25).toFixed(1)}m`;
     } else {
       scopeOverlay.classList.add('hidden');
-      scopeBtnText.textContent = 'SCOPE [SPACE / RMB]';
+      scopeBtnText.innerHTML = 'SCOPE <span class="kbd-hint">[SPACE / RMB]</span>';
     }
   }
 
@@ -1402,15 +1407,39 @@
     state.canvasMouse.y = ((clientY - rect.top) / rect.height) * V_HEIGHT;
   }
 
+  let hintDismissed = false;
+  function checkOrientationHint() {
+    if (!orientationHint || hintDismissed) return;
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
+    if (isPortrait && isMobile) {
+      orientationHint.classList.add('visible');
+    } else {
+      orientationHint.classList.remove('visible');
+    }
+  }
+
   function handleResize() {
-    const dpr = window.devicePixelRatio || 1;
     const w = window.innerWidth;
     const h = window.innerHeight;
+    const targetRatio = 16 / 9;
+    const currentRatio = w / h;
+
+    let displayW, displayH;
+    if (currentRatio > targetRatio) {
+      displayH = h;
+      displayW = Math.round(h * targetRatio);
+    } else {
+      displayW = w;
+      displayH = Math.round(w / targetRatio);
+    }
 
     canvas.width = V_WIDTH;
     canvas.height = V_HEIGHT;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
+    canvas.style.width = `${displayW}px`;
+    canvas.style.height = `${displayH}px`;
+
+    checkOrientationHint();
   }
 
   // --- Game Lifecycle ---
@@ -1462,11 +1491,13 @@
     gameoverModal.classList.add('hidden');
     pauseModal.classList.add('hidden');
     scopeOverlay.classList.add('hidden');
+    if (hudLayer) hudLayer.classList.remove('hidden');
   }
 
   function endGame() {
     state.isPlaying = false;
     if (state.isScoped) toggleScope();
+    if (hudLayer) hudLayer.classList.add('hidden');
 
     // Check high records
     let isNewHigh = false;
@@ -1523,6 +1554,8 @@
 
     // Shooting: Left Click
     gameContainer.addEventListener('mousedown', (e) => {
+      // Prevent synthetic mousedown firing immediately after touchstart on mobile
+      if (Date.now() - lastTouchTime < 450) return;
       // Avoid triggering when clicking HUD buttons
       if (e.target.closest('button') || e.target.closest('.modal-box')) return;
 
@@ -1543,10 +1576,51 @@
     // Touch support for mobile / tablet
     gameContainer.addEventListener('touchstart', (e) => {
       if (e.target.closest('button') || e.target.closest('.modal-box')) return;
+      if (state.isPlaying && !state.isPaused) {
+        e.preventDefault();
+      }
+      lastTouchTime = Date.now();
       const touch = e.touches[0];
       updateMousePositions(touch.clientX, touch.clientY);
+      createTouchRipple(touch.clientX, touch.clientY);
       shoot();
     }, { passive: false });
+
+    function createTouchRipple(clientX, clientY) {
+      if (!touchRipplesContainer) return;
+      const ripple = document.createElement('div');
+      ripple.className = 'touch-ripple';
+      ripple.style.left = `${clientX}px`;
+      ripple.style.top = `${clientY}px`;
+      touchRipplesContainer.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 400);
+    }
+
+    // Fullscreen Toggle
+    if (btnFullscreen) {
+      btnFullscreen.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+          btnFullscreen.textContent = '✕';
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+          btnFullscreen.textContent = '⛶';
+        }
+      });
+
+      document.addEventListener('fullscreenchange', () => {
+        btnFullscreen.textContent = document.fullscreenElement ? '✕' : '⛶';
+      });
+    }
+
+    // Dismiss Orientation Hint
+    if (btnDismissHint) {
+      btnDismissHint.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hintDismissed = true;
+        if (orientationHint) orientationHint.classList.remove('visible');
+      });
+    }
 
     // Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
@@ -1615,6 +1689,7 @@
     document.getElementById('btn-main-menu').addEventListener('click', () => {
       gameoverModal.classList.add('hidden');
       gameoverModal.classList.remove('active');
+      if (hudLayer) hudLayer.classList.add('hidden');
       startScreen.classList.add('active');
     });
 
@@ -1623,6 +1698,7 @@
       state.isPlaying = false;
       pauseModal.classList.add('hidden');
       pauseModal.classList.remove('active');
+      if (hudLayer) hudLayer.classList.add('hidden');
       startScreen.classList.add('active');
     });
   }
