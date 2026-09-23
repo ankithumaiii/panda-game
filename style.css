@@ -754,8 +754,9 @@ html, body {
 }
 
 .screen-modal.hidden {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  display: none !important;
 }
 
 .modal-backdrop {

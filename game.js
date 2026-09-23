@@ -6,6 +6,9 @@
 (function () {
   'use strict';
 
+  var lastTouchTime = 0;
+  window.lastTouchTime = 0;
+
   // --- Configuration & Constants ---
   const CONFIG = {
     MAX_AMMO: 6,
@@ -214,36 +217,66 @@
       this.targetX = targetX;
       this.targetY = targetY;
       this.progress = 0;
-      this.duration = 65; // ms
+      this.duration = 130; // ms for high-velocity visible dart streak
+      this.impactSpawned = false;
     }
 
     update(dt) {
       this.progress += dt / this.duration;
-      return this.progress < 1.0;
+      if (this.progress >= 1 && !this.impactSpawned) {
+        this.impactSpawned = true;
+        spawnPuffParticles(this.targetX, this.targetY, 6, '#34d399');
+      }
+      return this.progress < 1.35;
     }
 
     draw(ctx) {
-      const curX = this.startX + (this.targetX - this.startX) * Math.min(1, this.progress);
-      const curY = this.startY + (this.targetY - this.startY) * Math.min(1, this.progress);
-      const prevX = this.startX + (this.targetX - this.startX) * Math.max(0, this.progress - 0.35);
-      const prevY = this.startY + (this.targetY - this.startY) * Math.max(0, this.progress - 0.35);
+      const p = Math.min(1, this.progress);
+      const curX = this.startX + (this.targetX - this.startX) * p;
+      const curY = this.startY + (this.targetY - this.startY) * p;
+      const tailP = Math.max(0, p - 0.45);
+      const prevX = this.startX + (this.targetX - this.startX) * tailP;
+      const prevY = this.startY + (this.targetY - this.startY) * tailP;
 
       ctx.save();
+
+      // Outer glow trail
       ctx.beginPath();
       ctx.moveTo(prevX, prevY);
       ctx.lineTo(curX, curY);
       ctx.strokeStyle = '#34d399';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 6;
       ctx.lineCap = 'round';
       ctx.shadowColor = '#10b981';
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 16;
       ctx.stroke();
 
-      // Dart tip spark
+      // Bright inner core
       ctx.beginPath();
-      ctx.arc(curX, curY, 3.5, 0, Math.PI * 2);
+      ctx.moveTo(prevX, prevY);
+      ctx.lineTo(curX, curY);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Glowing dart head
+      ctx.beginPath();
+      ctx.arc(curX, curY, 4.5, 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = '#34d399';
+      ctx.shadowBlur = 14;
       ctx.fill();
+
+      // Expanding impact ring upon arrival
+      if (this.progress >= 1) {
+        const ringP = (this.progress - 1) / 0.35;
+        ctx.beginPath();
+        ctx.arc(this.targetX, this.targetY, 8 + ringP * 28, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(52, 211, 153, ${Math.max(0, 1 - ringP)})`;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+
       ctx.restore();
     }
   }
@@ -1504,6 +1537,7 @@
     resetCombo();
 
     startScreen.classList.remove('active');
+    startScreen.classList.add('hidden');
     gameoverModal.classList.add('hidden');
     pauseModal.classList.add('hidden');
     scopeOverlay.classList.add('hidden');
@@ -1571,11 +1605,14 @@
     // Shooting: Left Click
     gameContainer.addEventListener('mousedown', (e) => {
       // Prevent synthetic mousedown firing immediately after touchstart on mobile
-      if (Date.now() - lastTouchTime < 450) return;
+      if (Date.now() - (window.lastTouchTime || 0) < 450) return;
       // Avoid triggering when clicking HUD buttons
       if (e.target.closest('button') || e.target.closest('.modal-box')) return;
 
       if (e.button === 0) {
+        if (!state.isPlaying) {
+          startGame();
+        }
         updateMousePositions(e.clientX, e.clientY);
         shoot(state.canvasMouse.x, state.canvasMouse.y);
       } else if (e.button === 2) {
@@ -1593,15 +1630,28 @@
     // Touch support for mobile / tablet
     gameContainer.addEventListener('touchstart', (e) => {
       if (e.target.closest('button') || e.target.closest('.modal-box')) return;
+      window.lastTouchTime = Date.now();
+      lastTouchTime = window.lastTouchTime;
+      if (!state.isPlaying) {
+        startGame();
+      }
       if (state.isPlaying && !state.isPaused) {
         e.preventDefault();
       }
-      lastTouchTime = Date.now();
       const touch = e.touches[0];
       updateMousePositions(touch.clientX, touch.clientY);
       createTouchRipple(touch.clientX, touch.clientY);
       shoot(state.canvasMouse.x, state.canvasMouse.y);
     }, { passive: false });
+
+    // Direct Canvas Click Fallback
+    canvas.addEventListener('click', (e) => {
+      if (!state.isPlaying) {
+        startGame();
+      }
+      updateMousePositions(e.clientX, e.clientY);
+      shoot(state.canvasMouse.x, state.canvasMouse.y);
+    });
 
     function createTouchRipple(clientX, clientY) {
       if (!touchRipplesContainer) return;
